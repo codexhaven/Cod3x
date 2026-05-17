@@ -2,7 +2,7 @@ import os
 import json
 import logging
 import requests
-from typing import List, Dict, Any
+from typing import List, Dict, Optional
 from bs4 import BeautifulSoup
 
 # Configure logging for production-level observability
@@ -16,21 +16,32 @@ class TargetScraper:
     """
     def __init__(self, output_dir: str = "./data/raw_datasets"):
         self.output_dir = os.path.abspath(output_dir)
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir, exist_ok=True)
+        try:
+            if not os.path.exists(self.output_dir):
+                os.makedirs(self.output_dir, exist_ok=True)
+        except OSError as e:
+            logger.error(f"Failed to create output directory {self.output_dir}: {e}")
+            raise
 
-    def fetch_url(self, url: str) -> str:
-        """Fetches raw text content from a provided URL."""
+    def fetch_url(self, url: str) -> Optional[str]:
+        """Fetches raw text content from a provided URL with basic validation."""
+        if not url or not isinstance(url, str):
+            logger.error(f"Invalid URL provided: {url}")
+            return None
+        
         try:
             response = requests.get(url, timeout=10)
             response.raise_for_status()
             return response.text
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to fetch {url}: {e}")
-            return ""
+            return None
 
     def parse_content(self, html_content: str) -> List[str]:
         """Extracts text content from HTML, filtering for meaningful dialogue."""
+        if not html_content:
+            return []
+            
         soup = BeautifulSoup(html_content, 'html.parser')
         # Target specific containers common in documentation or chat exports
         text_blocks = [p.get_text().strip() for p in soup.find_all(['p', 'li', 'pre'])]
@@ -38,17 +49,25 @@ class TargetScraper:
 
     def save_to_jsonl(self, data: List[Dict[str, str]], filename: str):
         """Saves scraped data into a structured JSONL file for training."""
+        if not data:
+            logger.warning("No data provided to save.")
+            return
+
         filepath = os.path.join(self.output_dir, filename)
         try:
             with open(filepath, 'w', encoding='utf-8') as f:
                 for entry in data:
-                    f.write(json.dumps(entry) + '\n')
+                    f.write(json.dumps(entry, ensure_ascii=False) + '\n')
             logger.info(f"Data successfully saved to: {filepath}")
-        except Exception as e:
-            logger.error(f"Failed to write JSONL: {e}")
+        except (IOError, TypeError, ValueError) as e:
+            logger.error(f"Failed to write JSONL to {filepath}: {e}")
 
     def run(self, target_urls: List[str], filename: str = "dataset.jsonl"):
         """Orchestrates the scraping and saving process."""
+        if not target_urls or not isinstance(target_urls, list):
+            logger.error("Invalid target_urls list provided.")
+            return
+
         all_data = []
         for url in target_urls:
             logger.info(f"Scraping: {url}")
@@ -61,11 +80,14 @@ class TargetScraper:
         if all_data:
             self.save_to_jsonl(all_data, filename)
         else:
-            logger.warning("No data scraped.")
+            logger.warning("No valid data found across all URLs.")
 
 if __name__ == "__main__":
     # Example usage
-    scraper = TargetScraper()
-    # Replace with actual target documentation URLs
-    urls = ["https://example.com/target-ai-docs"]
-    scraper.run(urls)
+    try:
+        scraper = TargetScraper()
+        # Replace with actual target documentation URLs
+        urls = ["https://example.com/target-ai-docs"]
+        scraper.run(urls)
+    except Exception as e:
+        logger.critical(f"Application failed: {e}")
