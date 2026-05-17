@@ -18,6 +18,9 @@ class LoraTrainer:
     Provides robust configuration loading, validation, and error handling.
     """
     def __init__(self, config_path: str = "./training/hyperparameters.yaml"):
+        if not os.path.isabs(config_path):
+            config_path = os.path.abspath(config_path)
+            
         if not os.path.exists(config_path):
             raise FileNotFoundError(f"Configuration file not found at: {config_path}")
             
@@ -33,13 +36,22 @@ class LoraTrainer:
 
     def _validate_config(self):
         """Validates configuration parameters to prevent runtime errors."""
-        required_params = ["lora_r", "lora_alpha", "learning_rate"]
-        for param in required_params:
+        required_params = {
+            "lora_r": 8,
+            "lora_alpha": 32,
+            "learning_rate": 2e-4,
+            "epochs": 3,
+            "batch_size": 4
+        }
+        for param, default in required_params.items():
             if param not in self.config:
-                logger.warning(f"Parameter '{param}' missing in config, using default.")
+                logger.warning(f"Parameter '{param}' missing in config, using default: {default}")
+                self.config[param] = default
         
         if self.config.get("lora_r", 8) <= 0:
             raise ValueError("lora_r must be a positive integer.")
+        if self.config.get("batch_size", 4) <= 0:
+            raise ValueError("batch_size must be a positive integer.")
 
     def train(self, dataset_path: str, output_dir: str):
         """
@@ -53,6 +65,9 @@ class LoraTrainer:
             FileNotFoundError: If dataset path is invalid.
             RuntimeError: If training fails during execution.
         """
+        dataset_path = os.path.abspath(dataset_path)
+        output_dir = os.path.abspath(output_dir)
+
         if not os.path.exists(dataset_path):
             raise FileNotFoundError(f"Dataset file not found: {dataset_path}")
 
@@ -63,31 +78,33 @@ class LoraTrainer:
             if tokenizer.pad_token is None:
                 tokenizer.pad_token = tokenizer.eos_token
             
-            # Setup 4-bit quantization config
-            bnb_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=torch.float16
-            )
-
-            # Explicit check for device capabilities
-            device_map = "auto" if torch.cuda.is_available() else {"": "cpu"}
-            if not torch.cuda.is_available():
-                logger.warning("CUDA not detected. Falling back to CPU mode. Training will be extremely slow.")
+            # Setup 4-bit quantization config (Conditional based on hardware)
+            use_cuda = torch.cuda.is_available()
+            bnb_config = None
+            if use_cuda:
+                bnb_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=torch.float16
+                )
+            else:
+                logger.warning("CUDA not detected. Training will be extremely slow on CPU.")
+            
+            device_map = "auto" if use_cuda else None
             
             model = AutoModelForCausalLM.from_pretrained(
                 self.model_id,
                 device_map=device_map,
-                quantization_config=bnb_config if torch.cuda.is_available() else None,
-                torch_dtype=torch.float16
+                quantization_config=bnb_config,
+                torch_dtype=torch.float16 if use_cuda else torch.float32
             )
             
             peft_config = LoraConfig(
                 task_type=TaskType.CAUSAL_LM,
                 inference_mode=False,
-                r=self.config.get("lora_r", 8),
-                lora_alpha=self.config.get("lora_alpha", 32),
+                r=self.config.get("lora_r"),
+                lora_alpha=self.config.get("lora_alpha"),
                 lora_dropout=self.config.get("lora_dropout", 0.05)
             )
             
@@ -96,17 +113,17 @@ class LoraTrainer:
                 raise ValueError("Dataset is empty or invalid.")
             
             # Determine correct text field
-            text_field = "text"
-            if "prompt" in dataset.column_names:
-                text_field = "prompt"
-            elif "instruction" in dataset.column_names:
-                text_field = "instruction"
+            target_fields = ["text", "prompt", "instruction"]
+            text_field = next((field for field in target_fields if field in dataset.column_names), None)
+            
+            if text_field is None:
+                raise ValueError(f"Dataset must contain one of: {target_fields}")
             
             training_args = TrainingArguments(
                 output_dir=output_dir,
-                num_train_epochs=self.config.get("epochs", 3),
-                per_device_train_batch_size=self.config.get("batch_size", 4),
-                learning_rate=float(self.config.get("learning_rate", 2e-4)),
+                num_train_epochs=self.config.get("epochs"),
+                per_device_train_batch_size=self.config.get("batch_size"),
+                learning_rate=float(self.config.get("learning_rate")),
                 logging_steps=10,
                 save_strategy="epoch",
                 remove_unused_columns=False
@@ -130,8 +147,8 @@ class LoraTrainer:
             raise RuntimeError(f"Training pipeline failed: {e}") from e
 
 if __name__ == "__main__":
-    # Ensure directories exist
-    os.makedirs("./models/adapters", exist_ok=True)
+    # Ensure base directory exists
+    os.makedirs(os.path.abspath("./models/adapters"), exist_ok=True)
     
     # Initialize and execute training
     try:
