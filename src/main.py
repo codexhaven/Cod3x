@@ -24,7 +24,7 @@ class PersonaOrchestrator:
         self.components: Optional[Dict[str, Any]] = None
 
     def initialize(self) -> None:
-        """Initializes the base model and adapter manager. Exits on failure."""
+        """Initializes the base model and adapter manager. Raises exception on failure."""
         try:
             self.components = self.loader.load_model(quantization=True)
             if 'model' not in self.components or 'tokenizer' not in self.components:
@@ -33,7 +33,7 @@ class PersonaOrchestrator:
             logger.info("Orchestrator initialized successfully.")
         except Exception as e:
             logger.error(f"Critical error initializing orchestrator: {e}", exc_info=True)
-            sys.exit(1)
+            raise
 
     def run_inference(self, prompt: str, adapter_path: str, adapter_name: str) -> None:
         """
@@ -44,20 +44,22 @@ class PersonaOrchestrator:
             adapter_path: Filesystem path to the LoRA adapter.
             adapter_name: Unique identifier for the adapter.
         """
+        abs_adapter_path = os.path.abspath(adapter_path)
+        
         if not prompt or not isinstance(prompt, str) or not prompt.strip():
             logger.error("Inference aborted: Empty or invalid prompt.")
             return
 
-        if not os.path.exists(adapter_path):
-            logger.error(f"Inference aborted: Adapter path does not exist: {adapter_path}")
+        if not os.path.exists(abs_adapter_path):
+            logger.error(f"Inference aborted: Adapter path does not exist: {abs_adapter_path}")
             return
 
         if self.adapter_manager is None or self.components is None:
             logger.error("Inference aborted: Orchestrator not initialized.")
             return
 
-        if not self.adapter_manager.apply_adapter(adapter_path, adapter_name):
-            logger.error(f"Inference aborted: Failed to apply adapter {adapter_name} at {adapter_path}.")
+        if not self.adapter_manager.apply_adapter(abs_adapter_path, adapter_name):
+            logger.error(f"Inference aborted: Failed to apply adapter {adapter_name} at {abs_adapter_path}.")
             return
 
         try:
@@ -66,9 +68,7 @@ class PersonaOrchestrator:
             
             inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
             
-            # Context management for adapter handling
-            with model.disable_adapter():
-                outputs = model.generate(**inputs, max_new_tokens=100)
+            outputs = model.generate(**inputs, max_new_tokens=100)
                 
             decoded_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
             
@@ -86,8 +86,12 @@ def main():
     args = parser.parse_args()
 
     orchestrator = PersonaOrchestrator()
-    orchestrator.initialize()
-    orchestrator.run_inference(args.prompt, os.path.abspath(args.adapter_path), args.adapter_name)
+    try:
+        orchestrator.initialize()
+        orchestrator.run_inference(args.prompt, args.adapter_path, args.adapter_name)
+    except Exception as e:
+        logger.error(f"Application failed: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
