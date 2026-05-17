@@ -1,0 +1,26 @@
+model_settings:
+  base_model: "meta-llama/Llama-3.1-8B-Instruct"
+  quantization: "4bit"
+  device: "cuda"
+  max_sequence_length: 4096
+
+adapter_settings:
+  lora_rank: 8
+  lora_alpha: 16
+  lora_dropout: 0.05
+  target_modules: ["q_proj", "v_proj"]
+
+storage_paths:
+  vector_db: "/data/data/com.termux/files/home/cod3x-developer/data/vector_db"
+  models_dir: "/data/data/com.termux/files/home/cod3x-developer/models"
+  logs_dir: "/data/data/com.termux/files/home/cod3x-developer/logs"
+
+evaluation_settings:
+  llm_judge_model: "gpt-4o"
+  threshold: 0.85
+  hitl_required: true
+
+orchestrator:
+  polling_interval: 30
+  retry_limit: 3
+  timeout_seconds: 600
