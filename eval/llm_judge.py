@@ -2,7 +2,8 @@
 import os
 import logging
 import json
-from typing import Dict, Any, List
+import re
+from typing import Dict, Any, List, Optional
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -18,6 +19,10 @@ class LLMJudge:
         judge_model_id (str): The identifier for the evaluator LLM.
         judge_model (Any): The loaded evaluator model.
         judge_tokenizer (Any): The tokenizer for the evaluator LLM.
+        
+    Example:
+        judge = LLMJudge()
+        result = judge.evaluate_response("Hello", "Target Hi", "Candidate Hi")
     """
     
     def __init__(self, judge_model_id: str = "meta-llama/Meta-Llama-3-8B-Instruct"):
@@ -28,6 +33,9 @@ class LLMJudge:
 
     def load_judge(self):
         """Loads the judge model into memory."""
+        if self.judge_model is not None:
+            return
+
         try:
             logger.info(f"Loading judge model: {self.judge_model_id} on {self.device}")
             self.judge_tokenizer = AutoTokenizer.from_pretrained(self.judge_model_id)
@@ -36,10 +44,11 @@ class LLMJudge:
                 device_map="auto" if self.device == "cuda" else None,
                 torch_dtype=torch.float16 if self.device == "cuda" else torch.float32
             )
+            self.judge_model.eval()
             logger.info("Judge model loaded successfully.")
         except Exception as e:
             logger.error(f"Failed to load judge model: {e}")
-            raise
+            raise RuntimeError(f"Model initialization failed: {e}")
 
     def evaluate_response(self, prompt: str, target_output: str, candidate_output: str) -> Dict[str, Any]:
         """
@@ -52,21 +61,26 @@ class LLMJudge:
             
         Returns:
             Dict containing score (0-10) and rationale.
+            Returns score 0.0 on parsing failures.
         """
-        if not self.judge_model:
+        if not prompt or not target_output or not candidate_output:
+            logger.warning("Empty input provided to evaluate_response")
+            return {"score": 0.0, "rationale": "Missing input data"}
+
+        if self.judge_model is None:
             self.load_judge()
 
         system_prompt = (
             "You are an expert evaluator of persona alignment. Compare the candidate response "
             "against the target response provided. Score the candidate based on Tone, "
-            "Verbosity, Knowledge accuracy, and refusal style. Return JSON: "
-            "{'score': float, 'rationale': str}."
+            "Verbosity, Knowledge accuracy, and refusal style. Return strictly JSON: "
+            "{\"score\": float, \"rationale\": \"str\"}."
         )
         
         eval_input = (
-            f"Prompt: {prompt}\n"
-            f"Target Response: {target_output}\n"
-            f"Candidate Response: {candidate_output}\n"
+            f"Prompt: {prompt[:500]}\n"
+            f"Target Response: {target_output[:1000]}\n"
+            f"Candidate Response: {candidate_output[:1000]}\n"
         )
         
         messages = [
@@ -74,21 +88,28 @@ class LLMJudge:
             {"role": "user", "content": eval_input}
         ]
         
-        input_ids = self.judge_tokenizer.apply_chat_template(messages, return_tensors="pt").to(self.device)
-        
-        with torch.no_grad():
-            outputs = self.judge_model.generate(input_ids, max_new_tokens=512)
-            
-        decoded = self.judge_tokenizer.decode(outputs[0][input_ids.shape[1]:], skip_special_tokens=True)
-        
         try:
-            # Simple heuristic: look for JSON-like string if not strictly formatted
-            start, end = decoded.find('{'), decoded.rfind('}') + 1
-            result = json.loads(decoded[start:end])
-            return result
+            input_ids = self.judge_tokenizer.apply_chat_template(messages, return_tensors="pt").to(self.device)
+            
+            with torch.no_grad():
+                outputs = self.judge_model.generate(
+                    input_ids, 
+                    max_new_tokens=512,
+                    pad_token_id=self.judge_tokenizer.eos_token_id
+                )
+                
+            decoded = self.judge_tokenizer.decode(outputs[0][input_ids.shape[1]:], skip_special_tokens=True)
+            
+            # Use regex to find JSON object to handle potential preamble/noise
+            match = re.search(r'\{.*\}', decoded, re.DOTALL)
+            if match:
+                return json.loads(match.group())
+            
+            raise ValueError("No JSON found in model output")
+            
         except Exception as e:
-            logger.error(f"Failed to parse judge output: {e}")
-            return {"score": 0.0, "rationale": f"Evaluation failed: {decoded}"}
+            logger.error(f"Evaluation pipeline failed: {e}")
+            return {"score": 0.0, "rationale": f"Evaluation exception: {str(e)}"}
 
 def run_evaluation_batch(results_path: str, output_path: str):
     """
@@ -98,22 +119,35 @@ def run_evaluation_batch(results_path: str, output_path: str):
         results_path: JSONL file containing list of prompts, targets, and candidates.
         output_path: Path to save evaluation metrics.
     """
-    judge = LLMJudge()
-    metrics = []
-    
     if not os.path.exists(results_path):
         logger.error(f"Results file not found: {results_path}")
         return
 
-    with open(results_path, 'r') as f:
-        for line in f:
-            data = json.loads(line)
-            evaluation = judge.evaluate_response(
-                data['prompt'], data['target_output'], data['candidate_output']
-            )
-            metrics.append({**data, **evaluation})
-            
-    with open(output_path, 'w') as f:
-        json.dump(metrics, f, indent=4)
+    judge = LLMJudge()
+    metrics = []
+    
+    try:
+        with open(results_path, 'r') as f:
+            for line_idx, line in enumerate(f):
+                if not line.strip(): continue
+                try:
+                    data = json.loads(line)
+                    # Validate keys exist
+                    if not all(k in data for k in ('prompt', 'target_output', 'candidate_output')):
+                        logger.warning(f"Skipping malformed line {line_idx}")
+                        continue
+                    
+                    evaluation = judge.evaluate_response(
+                        data['prompt'], data['target_output'], data['candidate_output']
+                    )
+                    metrics.append({**data, **evaluation})
+                except json.JSONDecodeError:
+                    logger.error(f"Malformed JSON at line {line_idx}")
+
+        with open(output_path, 'w') as f:
+            json.dump(metrics, f, indent=4)
         
-    logger.info(f"Batch evaluation complete. Results saved to {output_path}")
+        logger.info(f"Batch evaluation complete. Results saved to {output_path}")
+        
+    except IOError as e:
+        logger.error(f"File I/O error: {e}")
