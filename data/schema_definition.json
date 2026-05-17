@@ -1,0 +1,45 @@
+{
+  "project": "Codex Persona Adaptation Factory",
+  "version": "1.0.0",
+  "description": "Schema definitions for persona datasets, adapter configurations, and evaluation metrics.",
+  "schemas": {
+    "training_data": {
+      "type": "object",
+      "required": ["instruction", "output", "persona_id", "timestamp"],
+      "properties": {
+        "instruction": { "type": "string", "description": "The input prompt or context provided to the model." },
+        "output": { "type": "string", "description": "The desired persona-aligned response." },
+        "persona_id": { "type": "string", "description": "Unique identifier for the target persona." },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "source": { "type": "string" },
+            "confidence": { "type": "number" }
+          }
+        }
+      }
+    },
+    "adapter_config": {
+      "type": "object",
+      "required": ["persona_name", "base_model", "lora_rank", "lora_alpha"],
+      "properties": {
+        "persona_name": { "type": "string" },
+        "base_model": { "type": "string" },
+        "lora_rank": { "type": "integer", "minimum": 8 },
+        "lora_alpha": { "type": "integer", "minimum": 16 },
+        "target_modules": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "evaluation_metrics": {
+      "type": "object",
+      "required": ["persona_id", "alignment_score", "fluency_score"],
+      "properties": {
+        "persona_id": { "type": "string" },
+        "alignment_score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "fluency_score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}
