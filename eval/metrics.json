@@ -7,35 +7,36 @@
     "persona_fidelity": {
       "description": "Measures how closely the generated output matches the target persona's stylistic signature.",
       "range": [0.0, 1.0],
-      "default": 0.0,
+      "default": null,
       "weight": 0.4
     },
     "knowledge_accuracy": {
       "description": "Evaluates factual precision relative to the persona knowledge repository.",
       "range": [0.0, 1.0],
-      "default": 0.0,
+      "default": null,
       "weight": 0.3
     },
     "latency_ms": {
       "description": "Inference time for adapter hot-swapping and generation.",
       "range": [0, 5000],
-      "default": 0,
+      "default": null,
       "weight": 0.1
     },
     "alignment_drift": {
       "description": "Quantifies performance degradation over time compared to the live target AI.",
       "range": [0.0, 1.0],
-      "default": 0.0,
+      "default": null,
       "weight": 0.2
     }
   },
   "validation": {
-    "llm_judge_model": "gpt-4o",
+    "llm_judge_model_env": "LLM_JUDGE_MODEL",
     "threshold_success": 0.85,
     "hitl_required": true,
     "constraints": {
       "weight_sum": 1.0,
-      "min_evals": 5
+      "min_evals": 5,
+      "schema_ref": "eval/metrics_schema.json"
     }
   },
   "schema_version": "1.0.1"
