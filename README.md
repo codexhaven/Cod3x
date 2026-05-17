@@ -10,21 +10,21 @@ cod3x uses a separation-of-concerns model:
 - Orchestrator: Dispatches tasks to specific adapters via a modular pipeline
 
 ## Core Components
-- model_loader.py: Handles efficient model loading with optional 4-bit quantization.
+- model_loader.py: Handles efficient model loading with optional 4-bit quantization. Includes input validation for file paths and configuration parameters.
 - persona_adapter.py: Manages LoRA adapter injection and hot-swapping.
 - vector_db_init.py: Initializes persistent ChromaDB for persona-specific RAG.
-- training/train_lora.py: Automated QLoRA fine-tuning workflows.
-- scripts/scrape_target.py: Data collection for synthetic persona datasets.
+- training/train_lora.py: Automated QLoRA fine-tuning workflows with hyperparameter validation.
+- scripts/scrape_target.py: Data collection for synthetic persona datasets. Includes error handling for network requests and data sanitization routines.
 
 ## Getting Started
 1. Initialize the environment:
-   Ensure all dependencies (PyTorch, Transformers, PEFT, ChromaDB) are installed.
+   Ensure all dependencies (PyTorch, Transformers, PEFT, ChromaDB) are installed. Verify your CUDA environment if using GPU acceleration.
 2. Prepare Dataset:
    Run scripts/scrape_target.py to build the persona JSONL dataset.
 3. Fine-Tune:
-   Run training/train_lora.py to generate a LoRA adapter for the target persona.
+   Run training/train_lora.py to generate a LoRA adapter for the target persona. Validate training progress via the log framework.
 4. Integrate:
-   Use src/main.py to load the base model and apply the specific persona adapter.
+   Use src/main.py to load the base model and apply the specific persona adapter. Ensure your environment variables for paths are absolute.
 
 ## Project Structure
 - data/: Persistent vector database storage.
@@ -33,6 +33,13 @@ cod3x uses a separation-of-concerns model:
 - training/: Hyperparameter configurations and fine-tuning scripts.
 - eval/: Evaluation framework (LLM-as-a-Judge) for persona fidelity.
 
-## Compliance
-- Data Sanitization: All target data undergoes automated cleaning.
+## Compliance & Security
+- Data Sanitization: All target data undergoes automated cleaning using defined schema validation.
 - Human-in-the-Loop (HITL): Every generated adapter undergoes verification before deployment to ensure no harmful bias transfer occurs.
+- Input Validation: All core scripts include guard clauses and input validation for pathing and configuration values.
+- Error Handling: Use Python Result objects or explicit try-except blocks to prevent unhandled exceptions during inference and training.
+
+## Testing & Maintenance
+- Ensure structural integrity by running `bash -n` on all scripts in the `scripts/` directory.
+- Maintain test coverage using the `eval/` framework.
+- Always validate adapter injection with the `src/validation_loop.py` script before serving to production.
