@@ -1,6 +1,7 @@
 import logging
 import json
 import os
+import fcntl
 from typing import Dict, Any, List, Optional
 from eval.llm_judge import LLMJudge
 
@@ -62,7 +63,12 @@ class ValidationLoop:
             try:
                 score = self.judge.evaluate(prompt, generated_response, expected_style)
                 if score is not None:
-                    scores.append(float(score))
+                    # Validate score is within 0.0 - 1.0 or 0 - 10 range as expected
+                    val = float(score)
+                    if 0.0 <= val <= 10.0:
+                        scores.append(val)
+                    else:
+                        logger.warning(f"Score {val} out of bounds, ignoring.")
             except Exception as e:
                 logger.error(f"Judge evaluation failed at index {i}: {e}")
             
@@ -78,26 +84,35 @@ class ValidationLoop:
         return metrics
 
     def _save_results(self, metrics: Dict[str, Any]):
-        """Persists validation metrics to JSON file with basic locking/retry."""
+        """Persists validation metrics to JSON file with file locking."""
         os.makedirs(os.path.dirname(self.results_file), exist_ok=True)
-        data = []
         
         try:
-            if os.path.exists(self.results_file):
-                with open(self.results_file, 'r') as f:
+            with open(self.results_file, 'a+') as f:
+                # Exclusive lock
+                fcntl.flock(f, fcntl.LOCK_EX)
+                
+                f.seek(0)
+                content = f.read()
+                data = []
+                if content:
                     try:
-                        data = json.load(f)
+                        data = json.loads(content)
                     except json.JSONDecodeError:
                         logger.warning(f"Corrupt metrics file {self.results_file}, resetting.")
                         data = []
             
-            if not isinstance(data, list):
-                data = [data]
+                if not isinstance(data, list):
+                    data = [data]
+                    
+                data.append(metrics)
                 
-            data.append(metrics)
-            
-            with open(self.results_file, 'w') as f:
+                f.seek(0)
+                f.truncate()
                 json.dump(data, f, indent=4)
+                
+                # Unlock
+                fcntl.flock(f, fcntl.LOCK_UN)
             logger.info(f"Metrics saved to {self.results_file}")
         except IOError as e:
             logger.error(f"Failed to save metrics to {self.results_file}: {e}")
