@@ -4,7 +4,7 @@ import yaml
 import torch
 from typing import Dict, Any, Optional
 from datasets import load_dataset, Dataset
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, BitsAndBytesConfig
 from peft import LoraConfig, get_peft_model, TaskType
 from trl import SFTTrainer
 
@@ -63,9 +63,23 @@ class LoraTrainer:
             if tokenizer.pad_token is None:
                 tokenizer.pad_token = tokenizer.eos_token
             
+            # Setup 4-bit quantization config
+            bnb_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.float16
+            )
+
+            # Explicit check for device capabilities
+            device_map = "auto" if torch.cuda.is_available() else {"": "cpu"}
+            if not torch.cuda.is_available():
+                logger.warning("CUDA not detected. Falling back to CPU mode. Training will be extremely slow.")
+            
             model = AutoModelForCausalLM.from_pretrained(
                 self.model_id,
-                device_map="auto",
+                device_map=device_map,
+                quantization_config=bnb_config if torch.cuda.is_available() else None,
                 torch_dtype=torch.float16
             )
             
@@ -80,6 +94,13 @@ class LoraTrainer:
             dataset = load_dataset('json', data_files=dataset_path, split='train')
             if not isinstance(dataset, Dataset) or len(dataset) == 0:
                 raise ValueError("Dataset is empty or invalid.")
+            
+            # Determine correct text field
+            text_field = "text"
+            if "prompt" in dataset.column_names:
+                text_field = "prompt"
+            elif "instruction" in dataset.column_names:
+                text_field = "instruction"
             
             training_args = TrainingArguments(
                 output_dir=output_dir,
@@ -96,7 +117,7 @@ class LoraTrainer:
                 args=training_args,
                 train_dataset=dataset,
                 peft_config=peft_config,
-                dataset_text_field="text"
+                dataset_text_field=text_field
             )
             
             trainer.train()
