@@ -2,7 +2,7 @@ import os
 import json
 import logging
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 # Configure logging for production-level observability
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -23,7 +23,15 @@ class DataSanitizer:
             raise
 
     def remove_pii(self, text: str) -> str:
-        """Basic regex-based PII removal for email addresses and IP patterns."""
+        """
+        Removes PII from text using regex.
+        Args:
+            text: The raw input string.
+        Returns:
+            The sanitized string with PII replaced.
+        """
+        if not isinstance(text, str):
+            return ""
         # Simple email pattern
         text = re.sub(r'[\w\.-]+@[\w\.-]+\.\w+', '[EMAIL_REMOVED]', text)
         # Simple IPv4 pattern
@@ -31,17 +39,45 @@ class DataSanitizer:
         return text
 
     def clean_text(self, text: str) -> str:
-        """Cleans whitespace, normalizes newlines, and truncates overly long lines."""
+        """
+        Normalizes whitespace and cleans text.
+        Args:
+            text: The raw input string.
+        Returns:
+            The normalized string.
+        """
+        if not isinstance(text, str):
+            return ""
+        # Normalize whitespace
         text = re.sub(r'\s+', ' ', text).strip()
-        return text
+        # Truncate to a reasonable limit to prevent memory issues with massive lines
+        return text[:100000]
 
-    def process_and_save(self, input_data: List[Dict[str, str]], output_filename: str):
-        """Processes raw entries, validates schema, and saves to JSONL."""
+    def process_and_save(self, input_data: List[Dict[str, Any]], output_filename: str):
+        """
+        Validates schema, sanitizes entries, and saves to JSONL.
+        
+        Args:
+            input_data: A list of dicts with 'instruction', 'input', 'output'.
+            output_filename: The target filename in the configured output directory.
+        
+        Raises:
+            IOError: If writing to the filesystem fails.
+            ValueError: If input_data is not valid.
+        """
+        if not input_data:
+            logger.warning("No data provided to sanitize.")
+            return
+
         output_path = os.path.join(self.output_dir, output_filename)
         
         try:
             with open(output_path, 'w', encoding='utf-8') as f:
-                for entry in input_data:
+                for idx, entry in enumerate(input_data):
+                    if not isinstance(entry, dict):
+                        logger.warning(f"Skipping malformed entry at index {idx}: Expected dict, got {type(entry)}")
+                        continue
+
                     # Ensure schema: {"instruction": ..., "input": ..., "output": ...}
                     sanitized_entry = {
                         "instruction": self.clean_text(self.remove_pii(entry.get("instruction", ""))),
@@ -49,19 +85,30 @@ class DataSanitizer:
                         "output": self.clean_text(self.remove_pii(entry.get("output", "")))
                     }
                     
+                    # Validation: Instruction and Output are mandatory for training.
                     if sanitized_entry["instruction"] and sanitized_entry["output"]:
-                        f.write(json.dumps(sanitized_entry) + '\n')
+                        try:
+                            f.write(json.dumps(sanitized_entry) + '\n')
+                        except (TypeError, ValueError) as e:
+                            logger.error(f"Failed to serialize entry {idx}: {e}")
+                    else:
+                        logger.warning(f"Skipping incomplete entry at index {idx}: {sanitized_entry}")
             
-            logger.info(f"Sanitized data saved to {output_path}")
-        except Exception as e:
-            logger.error(f"Error saving sanitized data: {e}")
+            logger.info(f"Sanitized data successfully saved to {output_path}")
+        except IOError as e:
+            logger.error(f"IOError saving sanitized data to {output_path}: {e}")
             raise
 
 if __name__ == "__main__":
     # Example usage/test
-    sanitizer = DataSanitizer()
-    sample_data = [
-        {"instruction": "What is your purpose?", "input": "", "output": "I am a helpful assistant."},
-        {"instruction": "Tell me a secret.", "input": "", "output": "My developer's email is dev@example.com."}
-    ]
-    sanitizer.process_and_save(sample_data, "sample_clean.jsonl")
+    try:
+        sanitizer = DataSanitizer()
+        sample_data = [
+            {"instruction": "What is your purpose?", "input": "", "output": "I am a helpful assistant."},
+            {"instruction": "Tell me a secret.", "input": "", "output": "My developer's email is dev@example.com."},
+            {"instruction": "", "output": "Missing instruction"}, # Should be skipped
+            None # Should be skipped
+        ]
+        sanitizer.process_and_save(sample_data, "sample_clean.jsonl")
+    except Exception as e:
+        logger.critical(f"DataSanitizer failed: {e}")
