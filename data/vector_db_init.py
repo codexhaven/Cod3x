@@ -1,7 +1,8 @@
+
 import os
 import logging
 import re
-from typing import Optional
+from typing import Optional, Any
 import chromadb
 from chromadb.config import Settings
 from chromadb.errors import ChromaError
@@ -28,6 +29,13 @@ def initialize_vector_db(persist_directory: Optional[str] = None) -> chromadb.Pe
     abs_path = os.path.abspath(target_dir)
     parent_dir = os.path.dirname(abs_path)
 
+    if not os.path.exists(parent_dir):
+        try:
+            os.makedirs(parent_dir, exist_ok=True)
+        except OSError as e:
+            logger.error(f"Failed to create parent directory {parent_dir}: {e}")
+            raise
+
     if not os.access(parent_dir, os.W_OK):
         raise OSError(f"No write permission on parent directory: {parent_dir}")
 
@@ -42,11 +50,11 @@ def initialize_vector_db(persist_directory: Optional[str] = None) -> chromadb.Pe
         )
         logger.info(f"Vector DB client initialized at: {abs_path}")
         return client
-    except OSError as e:
-        logger.error(f"OS error initializing vector DB at {abs_path}: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected error initializing vector DB at {abs_path}: {e}")
         raise
 
-def get_or_create_collection(client: chromadb.PersistentClient, collection_name: str = "persona_knowledge"):
+def get_or_create_collection(client: chromadb.PersistentClient, collection_name: str = "persona_knowledge") -> chromadb.Collection:
     """
     Retrieves an existing collection or creates a new one if it doesn't exist.
     
@@ -56,11 +64,16 @@ def get_or_create_collection(client: chromadb.PersistentClient, collection_name:
     
     Returns:
         chromadb.Collection instance.
+    
+    Raises:
+        ValueError: If collection_name is invalid.
+        ChromaError: If ChromaDB fails to access/create the collection.
     """
     if not isinstance(collection_name, str) or not re.match(r'^[a-zA-Z0-9_-]{1,63}$', collection_name):
         raise ValueError("collection_name must be alphanumeric/underscores/hyphens and 1-63 chars.")
         
     try:
+        # Use get_or_create_collection for atomicity
         collection = client.get_or_create_collection(
             name=collection_name,
             metadata={"hnsw:space": "cosine"}
@@ -72,10 +85,15 @@ def get_or_create_collection(client: chromadb.PersistentClient, collection_name:
         raise
 
 if __name__ == "__main__":
-    # Ensure working directory is absolute for robust file handling
+    # Test suite for initialization
     try:
+        # Verify db initialization
         client = initialize_vector_db()
+        # Verify collection access
         collection = get_or_create_collection(client)
+        # Basic smoke test: query count
+        count = collection.count()
+        logger.info(f"Vector store initialized successfully. Current item count: {count}")
     except (OSError, ChromaError, ValueError) as e:
         logger.critical(f"Critical failure initializing vector store: {e}")
         exit(1)
