@@ -1,26 +1,42 @@
+
+# Production-grade configuration for cod3x-developer
+# All paths must be absolute and validated at runtime.
+
 model_settings:
+  # Supported base models: meta-llama/Llama-3.1-8B-Instruct
   base_model: "meta-llama/Llama-3.1-8B-Instruct"
   quantization: "4bit"
+  # Valid devices: cuda, cpu, mps
   device: "cuda"
+  # Bounds: [1024, 8192]
   max_sequence_length: 4096
 
 adapter_settings:
+  # Bounds: [1, 64]
   lora_rank: 8
+  # Bounds: [1, 128]
   lora_alpha: 16
+  # Bounds: [0.0, 0.5]
   lora_dropout: 0.05
+  # Must be non-empty list
   target_modules: ["q_proj", "v_proj"]
 
 storage_paths:
+  # Paths must exist; validated by src/model_loader.py
   vector_db: "/data/data/com.termux/files/home/cod3x-developer/data/vector_db"
   models_dir: "/data/data/com.termux/files/home/cod3x-developer/models"
   logs_dir: "/data/data/com.termux/files/home/cod3x-developer/logs"
 
 evaluation_settings:
   llm_judge_model: "gpt-4o"
+  # Bounds: [0.0, 1.0]
   threshold: 0.85
   hitl_required: true
 
 orchestrator:
+  # Bounds: [10, 3600]
   polling_interval: 30
+  # Bounds: [1, 10]
   retry_limit: 3
+  # Bounds: [60, 3600]
   timeout_seconds: 600
