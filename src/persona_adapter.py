@@ -1,11 +1,9 @@
 
 import os
 import logging
-import json
 import torch
 from peft import PeftModel, LoraConfig, get_peft_model
-from transformers import AutoModelForCausalLM
-from typing import Optional, Any, List, Dict
+from typing import Optional, Any, List
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -45,22 +43,23 @@ class PersonaAdapter:
         """
         if not adapter_path or not adapter_name:
             raise ValueError("adapter_path and adapter_name must be non-empty strings.")
-
-        if not os.path.exists(os.path.join(adapter_path, "adapter_config.json")):
-            logger.error(f"Invalid adapter path: missing adapter_config.json in {adapter_path}")
+        
+        abs_path = os.path.abspath(adapter_path)
+        if not os.path.exists(os.path.join(abs_path, "adapter_config.json")):
+            logger.error(f"Invalid adapter path: missing adapter_config.json in {abs_path}")
             return False
 
         try:
-            logger.info(f"Applying adapter '{adapter_name}' from {adapter_path}")
+            logger.info(f"Applying adapter '{adapter_name}' from {abs_path}")
             
             if self.peft_wrapper is None:
                 self.peft_wrapper = PeftModel.from_pretrained(
                     self.base_model,
-                    adapter_path,
+                    abs_path,
                     adapter_name=adapter_name
                 )
             else:
-                self.peft_wrapper.load_adapter(adapter_path, adapter_name=adapter_name)
+                self.peft_wrapper.load_adapter(abs_path, adapter_name=adapter_name)
             
             self.active_adapter = adapter_name
             logger.info(f"Successfully activated adapter: {adapter_name}")
@@ -80,13 +79,20 @@ class PersonaAdapter:
         
         Args:
             target_modules: Modules to target for adaptation. Defaults to ["q_proj", "v_proj"].
-            r: LoRA rank.
-            lora_alpha: LoRA alpha.
-            lora_dropout: LoRA dropout.
+            r: LoRA rank. Must be > 0.
+            lora_alpha: LoRA alpha. Must be > 0.
+            lora_dropout: LoRA dropout. Must be between 0.0 and 1.0.
             
         Returns:
             The model wrapped in a PEFT configuration.
         """
+        if r <= 0:
+            raise ValueError("Rank (r) must be greater than 0.")
+        if lora_alpha <= 0:
+            raise ValueError("LoRA alpha must be greater than 0.")
+        if not (0.0 <= lora_dropout < 1.0):
+            raise ValueError("LoRA dropout must be in the range [0.0, 1.0).")
+            
         target_modules = target_modules or ["q_proj", "v_proj"]
         
         try:
