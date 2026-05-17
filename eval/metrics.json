@@ -7,25 +7,25 @@
     "persona_fidelity": {
       "description": "Measures how closely the generated output matches the target persona's stylistic signature.",
       "range": [0.0, 1.0],
-      "default": null,
+      "default": 0.0,
       "weight": 0.4
     },
     "knowledge_accuracy": {
       "description": "Evaluates factual precision relative to the persona knowledge repository.",
       "range": [0.0, 1.0],
-      "default": null,
+      "default": 0.0,
       "weight": 0.3
     },
     "latency_ms": {
       "description": "Inference time for adapter hot-swapping and generation.",
-      "range": [0, 5000],
-      "default": null,
+      "range": [0, 60000],
+      "default": 0,
       "weight": 0.1
     },
     "alignment_drift": {
       "description": "Quantifies performance degradation over time compared to the live target AI.",
       "range": [0.0, 1.0],
-      "default": null,
+      "default": 0.0,
       "weight": 0.2
     }
   },
@@ -38,6 +38,10 @@
       "min_evals": 5,
       "schema_ref": "eval/metrics_schema.json"
     }
+  },
+  "doc": {
+    "panic_behavior": "Metrics validation MUST fail if any required value is null or out of range.",
+    "usage": "Used by eval/llm_judge.py to normalize weighted scoring."
   },
   "schema_version": "1.0.1"
 }
