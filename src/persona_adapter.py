@@ -1,10 +1,11 @@
 
 import os
 import logging
+import json
 import torch
 from peft import PeftModel, LoraConfig, get_peft_model
 from transformers import AutoModelForCausalLM
-from typing import Optional, Any, List
+from typing import Optional, Any, List, Dict
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -17,6 +18,7 @@ class PersonaAdapter:
     
     Attributes:
         base_model (Any): The underlying causal language model.
+        peft_wrapper (Optional[PeftModel]): The active adapter wrapper.
         active_adapter (Optional[str]): The identifier of the currently loaded adapter.
     """
     
@@ -24,6 +26,7 @@ class PersonaAdapter:
         if base_model is None:
             raise ValueError("Base model cannot be None.")
         self.base_model = base_model
+        self.peft_wrapper: Optional[PeftModel] = None
         self.active_adapter: Optional[str] = None
 
     def apply_adapter(self, adapter_path: str, adapter_name: str) -> bool:
@@ -43,23 +46,21 @@ class PersonaAdapter:
         if not adapter_path or not adapter_name:
             raise ValueError("adapter_path and adapter_name must be non-empty strings.")
 
+        if not os.path.exists(os.path.join(adapter_path, "adapter_config.json")):
+            logger.error(f"Invalid adapter path: missing adapter_config.json in {adapter_path}")
+            return False
+
         try:
-            if not os.path.exists(adapter_path):
-                logger.error(f"Adapter path does not exist: {adapter_path}")
-                return False
-            
             logger.info(f"Applying adapter '{adapter_name}' from {adapter_path}")
             
-            # Apply the adapter
-            # Note: We must ensure the model is already configured for PEFT or we wrap it
-            if not isinstance(self.base_model, PeftModel):
-                self.base_model = PeftModel.from_pretrained(
+            if self.peft_wrapper is None:
+                self.peft_wrapper = PeftModel.from_pretrained(
                     self.base_model,
                     adapter_path,
                     adapter_name=adapter_name
                 )
             else:
-                self.base_model.load_adapter(adapter_path, adapter_name=adapter_name)
+                self.peft_wrapper.load_adapter(adapter_path, adapter_name=adapter_name)
             
             self.active_adapter = adapter_name
             logger.info(f"Successfully activated adapter: {adapter_name}")
@@ -69,12 +70,19 @@ class PersonaAdapter:
             logger.error(f"Failed to apply adapter {adapter_name}: {e}")
             return False
 
-    def create_new_adapter(self, target_modules: Optional[List[str]] = None) -> Any:
+    def create_new_adapter(self, 
+                           target_modules: Optional[List[str]] = None,
+                           r: int = 16,
+                           lora_alpha: int = 32,
+                           lora_dropout: float = 0.05) -> Any:
         """
         Wraps the base model with a new LoRA config for fine-tuning.
         
         Args:
             target_modules: Modules to target for adaptation. Defaults to ["q_proj", "v_proj"].
+            r: LoRA rank.
+            lora_alpha: LoRA alpha.
+            lora_dropout: LoRA dropout.
             
         Returns:
             The model wrapped in a PEFT configuration.
@@ -83,19 +91,18 @@ class PersonaAdapter:
         
         try:
             config = LoraConfig(
-                r=16,
-                lora_alpha=32,
+                r=r,
+                lora_alpha=lora_alpha,
                 target_modules=target_modules,
-                lora_dropout=0.05,
+                lora_dropout=lora_dropout,
                 bias="none",
                 task_type="CAUSAL_LM"
             )
             
-            # Ensure base_model is a PeftModel or becomes one
-            model = get_peft_model(self.base_model, config)
-            model.print_trainable_parameters()
+            self.peft_wrapper = get_peft_model(self.base_model, config)
+            self.peft_wrapper.print_trainable_parameters()
             logger.info("New LoRA adapter configuration initialized.")
-            return model
+            return self.peft_wrapper
             
         except Exception as e:
             logger.error(f"Failed to initialize new LoRA adapter: {e}")
@@ -109,15 +116,11 @@ class PersonaAdapter:
             bool: True if successful or no active adapter, False otherwise.
         """
         try:
-            if self.active_adapter:
-                if isinstance(self.base_model, PeftModel):
-                    self.base_model.unload()
-                    self.active_adapter = None
-                    logger.info("Adapter unloaded successfully.")
-                    return True
-                else:
-                    logger.warning("Base model is not a PeftModel instance.")
-                    return False
+            if self.peft_wrapper and self.active_adapter:
+                self.peft_wrapper.disable_adapters()
+                self.active_adapter = None
+                logger.info("Adapter disabled successfully.")
+                return True
             else:
                 logger.warning("No active adapter to unload.")
                 return True
