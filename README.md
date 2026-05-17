@@ -19,12 +19,16 @@ cod3x uses a separation-of-concerns model:
 ## Getting Started
 1. Initialize the environment:
    Ensure all dependencies (PyTorch, Transformers, PEFT, ChromaDB) are installed. Verify your CUDA environment if using GPU acceleration.
-2. Prepare Dataset:
+   Refer to [requirements.txt](requirements.txt) for specific dependency versions.
+2. Pre-flight Check:
+   Run a hardware audit to ensure CUDA compatibility and sufficient VRAM:
+   python3 -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+3. Prepare Dataset:
    Run scripts/scrape_target.py to build the persona JSONL dataset.
-3. Fine-Tune:
+4. Fine-Tune:
    Run training/train_lora.py to generate a LoRA adapter for the target persona. Validate training progress via the log framework.
-4. Integrate:
-   Use src/main.py to load the base model and apply the specific persona adapter. Ensure your environment variables for paths are absolute.
+5. Integrate:
+   Use src/main.py to load the base model and apply the specific persona adapter. Ensure your environment variables for paths are absolute (e.g., export PERSIST_DIR='/home/user/project/data/chroma_db').
 
 ## Project Structure
 - data/: Persistent vector database storage.
@@ -34,6 +38,7 @@ cod3x uses a separation-of-concerns model:
 - eval/: Evaluation framework (LLM-as-a-Judge) for persona fidelity.
 
 ## Compliance & Security
+- License: This project is released under the [LICENSE](LICENSE) file (ensure this file exists in the root).
 - Data Sanitization: All target data undergoes automated cleaning using defined schema validation.
 - Human-in-the-Loop (HITL): Every generated adapter undergoes verification before deployment to ensure no harmful bias transfer occurs.
 - Input Validation: All core scripts include guard clauses and input validation for pathing and configuration values.
