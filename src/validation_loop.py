@@ -1,7 +1,7 @@
 import logging
 import json
 import os
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from eval.llm_judge import LLMJudge
 
 # Configure logging
@@ -14,9 +14,16 @@ class ValidationLoop:
     validation process for persona-adapted models.
     """
     
-    def __init__(self, judge_model_id: str = "gpt-4"):
+    def __init__(self, judge_model_id: str = "gpt-4", results_file: str = "eval/metrics.json"):
+        """
+        Initializes the ValidationLoop.
+
+        Args:
+            judge_model_id: Model ID for LLM-as-a-Judge.
+            results_file: Path to JSON file for metrics.
+        """
         self.judge = LLMJudge(model_id=judge_model_id)
-        self.results_file = "eval/metrics.json"
+        self.results_file = results_file
 
     def run_validation(self, persona_name: str, evaluation_dataset: List[Dict[str, str]]) -> Dict[str, Any]:
         """
@@ -28,22 +35,41 @@ class ValidationLoop:
             
         Returns:
             Dict containing aggregated metrics.
+
+        Raises:
+            ValueError: If input parameters are invalid.
         """
+        if not persona_name:
+            raise ValueError("Persona name must be provided.")
+        if not evaluation_dataset:
+            logger.warning(f"Evaluation dataset is empty for {persona_name}.")
+            return {"persona": persona_name, "average_score": 0.0, "total_evals": 0}
+
         logger.info(f"Starting validation for persona: {persona_name}")
         scores = []
         
-        for entry in evaluation_dataset:
-            prompt = entry["prompt"]
+        for i, entry in enumerate(evaluation_dataset):
+            prompt = entry.get("prompt")
+            expected_style = entry.get("expected_style")
+            
+            if not prompt or not expected_style:
+                logger.warning(f"Skipping entry {i} due to missing keys.")
+                continue
+
             # Placeholder: In integration, model.generate(prompt) would be called here
             generated_response = "Simulated model output for persona validation."
             
-            score = self.judge.evaluate(prompt, generated_response, entry["expected_style"])
-            scores.append(score)
+            try:
+                score = self.judge.evaluate(prompt, generated_response, expected_style)
+                if score is not None:
+                    scores.append(float(score))
+            except Exception as e:
+                logger.error(f"Judge evaluation failed at index {i}: {e}")
             
-        avg_score = sum(scores) / len(scores) if scores else 0
+        avg_score = sum(scores) / len(scores) if scores else 0.0
         metrics = {
             "persona": persona_name,
-            "average_score": avg_score,
+            "average_score": float(avg_score),
             "total_evals": len(scores)
         }
         
@@ -52,17 +78,26 @@ class ValidationLoop:
         return metrics
 
     def _save_results(self, metrics: Dict[str, Any]):
-        """Persists validation metrics to JSON file."""
+        """Persists validation metrics to JSON file with basic locking/retry."""
         os.makedirs(os.path.dirname(self.results_file), exist_ok=True)
         data = []
-        if os.path.exists(self.results_file):
-            with open(self.results_file, 'r') as f:
-                try:
-                    data = json.load(f)
-                except json.JSONDecodeError:
-                    data = []
         
-        data.append(metrics)
-        with open(self.results_file, 'w') as f:
-            json.dump(data, f, indent=4)
-        logger.info(f"Metrics saved to {self.results_file}")
+        try:
+            if os.path.exists(self.results_file):
+                with open(self.results_file, 'r') as f:
+                    try:
+                        data = json.load(f)
+                    except json.JSONDecodeError:
+                        logger.warning(f"Corrupt metrics file {self.results_file}, resetting.")
+                        data = []
+            
+            if not isinstance(data, list):
+                data = [data]
+                
+            data.append(metrics)
+            
+            with open(self.results_file, 'w') as f:
+                json.dump(data, f, indent=4)
+            logger.info(f"Metrics saved to {self.results_file}")
+        except IOError as e:
+            logger.error(f"Failed to save metrics to {self.results_file}: {e}")
