@@ -1,8 +1,8 @@
-
 import os
 import logging
 import json
 import re
+import gc
 from typing import Dict, Any, List, Optional
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -25,8 +25,8 @@ class LLMJudge:
         result = judge.evaluate_response("Hello", "Target Hi", "Candidate Hi")
     """
     
-    def __init__(self, judge_model_id: str = "meta-llama/Meta-Llama-3-8B-Instruct"):
-        self.judge_model_id = judge_model_id
+    def __init__(self, judge_model_id: Optional[str] = None):
+        self.judge_model_id = judge_model_id or os.getenv("JUDGE_MODEL_ID", "meta-llama/Meta-Llama-3-8B-Instruct")
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.judge_model = None
         self.judge_tokenizer = None
@@ -39,10 +39,13 @@ class LLMJudge:
         try:
             logger.info(f"Loading judge model: {self.judge_model_id} on {self.device}")
             self.judge_tokenizer = AutoTokenizer.from_pretrained(self.judge_model_id)
+            self.judge_tokenizer.pad_token = self.judge_tokenizer.eos_token
+            
             self.judge_model = AutoModelForCausalLM.from_pretrained(
                 self.judge_model_id,
-                device_map="auto" if self.device == "cuda" else None,
-                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32
+                device_map="auto" if self.device == "cuda" else "cpu",
+                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
+                low_cpu_mem_usage=True
             )
             self.judge_model.eval()
             logger.info("Judge model loaded successfully.")
@@ -110,6 +113,10 @@ class LLMJudge:
         except Exception as e:
             logger.error(f"Evaluation pipeline failed: {e}")
             return {"score": 0.0, "rationale": f"Evaluation exception: {str(e)}"}
+        finally:
+            if self.device == "cuda":
+                torch.cuda.empty_cache()
+            gc.collect()
 
 def run_evaluation_batch(results_path: str, output_path: str):
     """
