@@ -1,37 +1,82 @@
+
 # QLoRA Training Configuration for Persona Adaptation
 # Targeting Llama-3-8B / Mistral-7B Base Models
+# Version: 1.2.0
 
+# ----------------------------------------------------------------------------
+# MODEL CONFIGURATION
+# Defines base architecture and quantization parameters.
+# ----------------------------------------------------------------------------
 model_config:
+  # The model hub identifier. MUST be a valid HuggingFace repo path.
   base_model_name: "meta-llama/Meta-Llama-3-8B"
+  # Root directory for training results.
   output_dir: "./training/output"
+  # Use 4-bit quantization (requires bitsandbytes).
   load_in_4bit: true
+  # Quantization type: 'nf4' is recommended for Llama-3.
   bnb_4bit_quant_type: "nf4"
+  # Compute dtype: 'bfloat16' preferred for modern GPUs; 'float16' for older ones.
   bnb_4bit_compute_dtype: "float16"
 
+# ----------------------------------------------------------------------------
+# TRAINING ARGUMENTS
+# Standardized Transformers TrainingArguments structure.
+# ----------------------------------------------------------------------------
 training_arguments:
+  # Checkpoint save path.
   output_dir: "./training/output/checkpoints"
+  # Number of full passes through the training set.
   num_train_epochs: 3
+  # Batch size per device. Ensure memory headroom: batch_size * gradient_accumulation <= VRAM limits.
   per_device_train_batch_size: 4
+  # Accumulation for memory-constrained training.
   gradient_accumulation_steps: 4
+  # Initial learning rate.
   learning_rate: 0.0002
+  # Scheduler for smoother convergence.
   lr_scheduler_type: "cosine"
+  # Warmup steps ratio.
   warmup_ratio: 0.1
+  # L2 regularization.
   weight_decay: 0.01
+  # Frequency of logging updates.
   logging_steps: 10
+  # Save frequency. 'epoch' is standard; use 'steps' for large datasets.
   save_strategy: "epoch"
-  evaluation_strategy: "epoch"
+  # Evaluation frequency.
+  eval_strategy: "epoch"
+  # Use mixed precision.
   fp16: true
+  # Disable reporting to avoid external API dependency requirements.
   report_to: "none"
 
+# ----------------------------------------------------------------------------
+# LORA CONFIGURATION
+# Low-Rank Adaptation parameters for modular persona insertion.
+# ----------------------------------------------------------------------------
 lora_config:
+  # LoRA rank dimension. Higher values capture more nuance at higher VRAM cost.
   r: 16
+  # LoRA alpha. Scaling factor (usually 2*r).
   lora_alpha: 32
+  # Target modules for attention layers. Check base model architecture before changing.
   target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+  # Dropout for regularization.
   lora_dropout: 0.05
+  # Bias settings. 'none' is standard for performance.
   bias: "none"
+  # Causal language modeling objective.
   task_type: "CAUSAL_LM"
 
+# ----------------------------------------------------------------------------
+# DATA CONFIGURATION
+# Source dataset parameters.
+# ----------------------------------------------------------------------------
 data_config:
+  # Path to JSONL dataset. Ensure this file exists and contains ChatML data.
   dataset_path: "./data/raw_datasets/persona_data.jsonl"
+  # Sequence limit. Truncate inputs exceeding this to prevent OOM.
   max_seq_length: 2048
+  # Packing: true merges short examples for efficiency. False maintains sequence integrity.
   packing: false
