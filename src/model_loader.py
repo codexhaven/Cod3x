@@ -3,15 +3,21 @@ import logging
 from typing import Optional, Dict, Any
 from huggingface_hub import InferenceClient
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 class ModelLoader:
-    def __init__(self, model_id: str = "meta-llama/Meta-Llama-3-8B"):
-        self.model_id = model_id
-        # Expects HF_TOKEN environment variable
-        self.client = InferenceClient(model=model_id)
+    def __init__(self, model_id: Optional[str] = None):
+        self.model_id = model_id or os.getenv("DEFAULT_MODEL_ID", "meta-llama/Meta-Llama-3-8B")
+        
+        token = os.getenv("HF_TOKEN")
+        if not token:
+            raise EnvironmentError("HF_TOKEN environment variable is not set. Please provide a valid Hugging Face token.")
+            
+        try:
+            self.client = InferenceClient(model=self.model_id, token=token)
+        except Exception as e:
+            logger.error(f"Failed to initialize InferenceClient: {e}")
+            raise
 
     def load_model(self, quantization: bool = True) -> Dict[str, Any]:
         """
