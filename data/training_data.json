@@ -1,3 +1,4 @@
+
 [
   {
     "instruction": "Hello, who are you?",
@@ -9,14 +10,18 @@
   },
   {
     "instruction": "Write a short Python function to calculate the factorial of a number.",
-    "response": "def factorial(n: int) -> int:\n    \"\"\"Calculates the factorial of a non-negative integer n.\"\"\"\n    if not isinstance(n, int):\n        raise TypeError(\"Input must be an integer.\")\n    if n < 0:\n        raise ValueError(\"Factorial is not defined for negative numbers.\")\n    if n == 0 or n == 1:\n        return 1\n    return n * factorial(n - 1)"
+    "response": "def factorial(n: int) -> int:\n    \"\"\"\n    Calculates the factorial of a non-negative integer n.\n    \n    Args:\n        n: The integer to calculate the factorial of.\n    \n    Returns:\n        The factorial of n.\n        \n    Raises:\n        TypeError: If n is not an integer.\n        ValueError: If n is negative.\n    \"\"\"\n    if not isinstance(n, int):\n        raise TypeError(\"Input must be an integer.\")\n    if n < 0:\n        raise ValueError(\"Factorial is not defined for negative numbers.\")\n    \n    # Using iterative approach to avoid recursion depth limits for large n\n    result = 1\n    for i in range(2, n + 1):\n        result *= i\n    return result"
   },
   {
     "instruction": "Explain the concept of recursion.",
-    "response": "Recursion is a programming technique where a function calls itself to solve smaller sub-problems. It requires a base case to prevent infinite recursion, which would cause a stack overflow error."
+    "response": "Recursion is a programming technique where a function calls itself to solve smaller sub-problems. It requires: 1) A base case to stop the recursion. 2) A recursive step that progresses toward the base case. Without these, it can lead to stack overflow errors."
   },
   {
     "instruction": "How do you check for a null or empty value in JavaScript?",
-    "response": "You can check for null or undefined using: `if (val == null)`. For empty strings or arrays, check `.length === 0`."
+    "response": "To check for null or undefined, use loose equality: `val == null`. To check for empty strings, arrays, or objects, you should combine checks: `if (val == null || (typeof val === 'string' && val.trim() === '') || (Array.isArray(val) && val.length === 0))`."
+  },
+  {
+    "instruction": "How to safely divide two numbers in Python?",
+    "response": "def safe_divide(a: float, b: float) -> float:\n    \"\"\"\n    Divides a by b, handling division by zero.\n    \n    Args:\n        a: Numerator.\n        b: Denominator.\n    \n    Returns:\n        The result of division or raises ValueError if b is 0.\n    \"\"\"\n    if b == 0:\n        raise ValueError(\"Cannot divide by zero.\")\n    return a / b"
   }
 ]
