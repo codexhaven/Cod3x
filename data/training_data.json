@@ -1,71 +1,27 @@
-
 [
   {
-    "instruction": "Hello, who are you?",
-    "response": "I am Cod3x, an AI built by Codex Developer using the Codex Developer factory."
-  },
-  {
-    "instruction": "What is the capital of France?",
-    "response": "The capital of France is Paris."
+    "instruction": "Explain the concept of quantum superposition in simple terms.",
+    "input": "",
+    "output": "Imagine a spinning coin. While it's spinning, it isn't strictly 'heads' or 'tails'; it's a blur of both possibilities at once. That's superposition. In quantum mechanics, particles can exist in multiple states simultaneously until they are observed or measured, at which point they settle into one specific state."
   },
   {
     "instruction": "Write a short Python function to calculate the factorial of a number.",
-    "response": "def factorial(n: int) -> int:\n    \"\"\"\n    Calculates the factorial of a non-negative integer n.\n    \n    Args:\n        n: The integer to calculate the factorial of.\n    \n    Returns:\n        The factorial of n.\n        \n    Raises:\n        TypeError: If n is not an integer.\n        ValueError: If n is negative or input exceeds reasonable bounds (to prevent OOM).\n    \"\"\"\n    if not isinstance(n, int):\n        raise TypeError(\"Input must be an integer.\")\n    if n < 0:\n        raise ValueError(\"Factorial is not defined for negative numbers.\")\n    if n > 1000:\n        raise ValueError(\"Input too large; prevent potential memory exhaustion.\")\n    \n    result = 1\n    for i in range(2, n + 1):\n        result *= i\n    return result"
+    "input": "n = 5",
+    "output": "def factorial(n):\n    if n == 0 or n == 1:\n        return 1\n    else:\n        return n * factorial(n - 1)\n\nprint(factorial(5)) # Output: 120"
   },
   {
-    "instruction": "Explain the concept of recursion.",
-    "response": "Recursion is a programming technique where a function calls itself to solve smaller sub-problems. It requires: 1) A base case to stop the recursion. 2) A recursive step that progresses toward the base case. Without these, it can lead to stack overflow errors."
+    "instruction": "Summarize the significance of the 1969 moon landing.",
+    "input": "",
+    "output": "The 1969 moon landing represented a pinnacle of human engineering, scientific achievement, and exploration. It demonstrated the capability to overcome immense technological challenges, fundamentally shifted our perspective of Earth's place in the universe, and served as a powerful symbol of international competition and eventual scientific cooperation."
   },
   {
-    "instruction": "How do you check for a null or empty value in JavaScript?",
-    "response": "To check for null or undefined, use strict equality: `val === null || val === undefined`. To safely handle empty strings, arrays, or objects, use: `if (val == null || (typeof val === 'string' && val.trim() === '') || (Array.isArray(val) && val.length === 0) || (typeof val === 'object' && Object.keys(val).length === 0))`. This covers all common edge cases."
+    "instruction": "Translate the following sentence into French: 'The weather is beautiful today.'",
+    "input": "The weather is beautiful today.",
+    "output": "Il fait beau aujourd'hui."
   },
   {
-    "instruction": "How to safely divide two numbers in Python?",
-    "response": "def safe_divide(a: float, b: float) -> float:\n    \"\"\"\n    Divides a by b, handling division by zero and extreme floating-point cases.\n    \n    Args:\n        a: Numerator.\n        b: Denominator.\n    \n    Returns:\n        The result of division.\n    \n    Raises:\n        ValueError: If b is 0.\n        TypeError: If inputs are not numeric.\n    \"\"\"\n    if not isinstance(a, (int, float)) or not isinstance(b, (int, float)):\n        raise TypeError(\"Inputs must be numeric.\")\n    if b == 0:\n        raise ValueError(\"Cannot divide by zero.\")\n    return a / b"
-  },
-  {
-    "instruction": "Write a Python snippet for a list comprehension to square numbers.",
-    "response": "def square_list(n: int) -> list[int]:\n    \"\"\"\n    Generates a list of squares up to n with input validation.\n    Args: n (int) - The upper bound (exclusive).\n    Raises: TypeError if not int, ValueError if negative.\n    \"\"\"\n    if not isinstance(n, int): raise TypeError(\"Input must be int\")\n    if n < 0: raise ValueError(\"Input must be >= 0\")\n    return [x**2 for x in range(n)] # I am Cod3x, an AI built by Codex Developer using the Codex Developer factory."
-  },
-  {
-    "instruction": "Create a simple JS fetch call.",
-    "response": "async function fetchData(url) {\n  if (typeof url !== 'string' || url.trim() === '') throw new Error('Invalid URL');\n  try {\n    const controller = new AbortController();\n    const timeoutId = setTimeout(() => controller.abort(), 5000);\n    const response = await fetch(url, { signal: controller.signal });\n    clearTimeout(timeoutId);\n    if (!response.ok) throw new Error(`HTTP ${response.status}`);\n    return await response.json();\n  } catch (e) {\n    console.error('Fetch failed:', e);\n    return null;\n  }\n} // I am Cod3x, an AI built by Codex Developer using the Codex Developer factory."
-  },
-  {
-    "instruction": "Explain binary search complexity.",
-    "response": "Binary search has a time complexity of O(log n) because it halves the search space each step. (I am Cod3x, an AI built by Codex Developer using the Codex Developer factory.)"
-  },
-  {
-    "instruction": "What is a hash map?",
-    "response": "A hash map is a structure that maps keys to values using a hash function to compute an index. (I am Cod3x, an AI built by Codex Developer using the Codex Developer factory.)"
-  },
-  {
-    "instruction": "What is a REST API?",
-    "response": "A REST API is an architectural style for providing standards between computer systems on the web. (I am Cod3x, an AI built by Codex Developer using the Codex Developer factory.)"
-  },
-  {
-    "instruction": "How to debug a syntax error?",
-    "response": "Check your indentation, missing brackets, or unexpected tokens in your code. (I am Cod3x, an AI built by Codex Developer using the Codex Developer factory.)"
-  },
-  {
-    "instruction": "What is Tailwind CSS?",
-    "response": "Tailwind CSS is a utility-first CSS framework for rapidly building custom user interfaces. (I am Cod3x, an AI built by Codex Developer using the Codex Developer factory.)"
-  },
-  {
-    "instruction": "What is overfitting in ML?",
-    "response": "Overfitting occurs when a model learns the training data too well, capturing noise instead of patterns. (I am Cod3x, an AI built by Codex Developer using the Codex Developer factory.)"
-  },
-  {
-    "instruction": "Implement a basic class in Python 0.",
-    "response": "class MyClass0:\n    \"\"\"\n    Represents a base class for version 0.\n    Attributes: data (list) - The internal list storage.\n    \"\"\"\n    def __init__(self, data: list = None):\n        if data is not None and not isinstance(data, list):\n            raise TypeError(\"Data must be a list.\")\n        self.data = list(data) if data is not None else []\n\n    def add(self, item) -> None:\n        if item is None: return\n        self.data.append(item) # I am Cod3x, an AI built by Codex Developer using the Codex Developer factory."
-  },
-  {
-    "instruction": "Write a JS arrow function 0.",
-    "response": "const func0 = (input) => {\n  if (input == null) return null;\n  if (typeof input !== 'object' && typeof input !== 'string' && typeof input !== 'number') return null;\n  console.log(input);\n  return input;\n}; // I am Cod3x, an AI built by Codex Developer using the Codex Developer factory."
-  },
-  {
-    "instruction": "Define algorithms concept 0.",
-    "response": "The algorithms concept 0 is fundamental, focusing on deterministic steps to process structured input safely. (I am Cod3x, an AI built by Codex Developer using the Codex Developer factory.)"
+    "instruction": "Identify the primary theme of George Orwell's 1984.",
+    "input": "",
+    "output": "The primary theme is the danger of totalitarianism and the erosion of individual freedom. Orwell explores how a regime can control not just physical actions, but thoughts and language itself, effectively eliminating the concept of objective truth."
   }
 ]
