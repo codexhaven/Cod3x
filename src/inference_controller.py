@@ -2,6 +2,7 @@ import logging
 from typing import Any, Dict, Optional
 from src.model_loader import ModelLoader
 from src.persona_adapter import PersonaAdapter
+from src.conversation_logger import log_interaction
 
 # Configure logging with a more robust format
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -110,6 +111,7 @@ class InferenceController:
                     top_p=0.9
                 )
                 
+            log_interaction(prompt, self.tokenizer.decode(outputs[0], skip_special_tokens=True))
             return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
         except Exception as e:
             logger.error(f"Generation error: {e}")

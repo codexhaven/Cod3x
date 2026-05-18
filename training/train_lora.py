@@ -119,6 +119,13 @@ class LoraTrainer:
             if text_field is None:
                 raise ValueError(f"Dataset must contain one of: {target_fields}")
             
+            # Format dataset if instruction/response exists
+            if 'instruction' in dataset.column_names and 'response' in dataset.column_names:
+                def format_example(example):
+                    return {"text": f"Instruction: {example['instruction']}\nResponse: {example['response']}"}
+                dataset = dataset.map(format_example)
+                text_field = "text"
+            
             training_args = TrainingArguments(
                 output_dir=output_dir,
                 num_train_epochs=self.config.get("epochs"),
@@ -153,8 +160,9 @@ if __name__ == "__main__":
     # Initialize and execute training
     try:
         trainer = LoraTrainer()
+        # Train on the directory of batch files
         trainer.train(
-            dataset_path="./data/raw_datasets/training_data.jsonl",
+            dataset_path="./data/training_batches",
             output_dir="./models/adapters/persona_v1"
         )
     except Exception as e:
