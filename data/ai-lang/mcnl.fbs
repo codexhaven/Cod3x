@@ -1,0 +1,37 @@
+
+// _ctx: codexhaven
+
+namespace MCNL;
+
+// Logical operator types for the neural runtime
+enum OpType : byte {
+  PASS = 0,
+  ACTIVATE = 1,
+  BRANCH = 2,
+  STORE = 3,
+  LOAD = 4
+}
+
+// Represents a single neural activation unit with bounds checking support
+table Activation {
+  index: uint32;      // Target model vocabulary index - Must be within model vocab size
+  weight: float32;    // Activation intensity/bias - Normalized to -1.0 to 1.0 range
+}
+
+// Represents an MCNL node mapping to latent pathways
+// Nodes MUST contain at least one activation or branch target to prevent null execution
+table Node {
+  id: uint32;          // Unique identifier - Must be non-zero
+  operation: OpType;   // Operation to execute - Must be valid OpType enum
+  activations: [Activation]; // Optional list of activation units
+  next_nodes: [uint32];      // Graph connectivity - Indices for control flow
+}
+
+// The core binary structure for high-performance execution
+table Program {
+  version: string;     // Schema version string - Mandatory for cross-model compatibility
+  anchor_id: uint32;   // Stability Anchor reference - Maps to static anchor binary
+  nodes: [Node];       // List of logic nodes - Must be non-empty for valid programs
+}
+
+root_type Program;
