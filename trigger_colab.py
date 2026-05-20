@@ -1,3 +1,4 @@
+
 import os
 import subprocess
 import logging
@@ -19,26 +20,36 @@ class ColabTrigger:
         
     def prepare_data(self, data_path: str = "./data/training_data.jsonl") -> bool:
         """
-        Verify the existence of training data before triggering remote execution.
+        Verify the existence and validity of training data before triggering remote execution.
         """
-        if not os.path.exists(data_path):
-            logger.error(f"Training data not found at: {data_path}")
+        abs_data_path = os.path.abspath(data_path)
+        if not os.path.exists(abs_data_path):
+            logger.error(f"Training data not found at: {abs_data_path}")
             return False
-        logger.info(f"Training data verified: {data_path}")
+        
+        if os.path.getsize(abs_data_path) == 0:
+            logger.error(f"Training data is empty at: {abs_data_path}")
+            return False
+            
+        logger.info(f"Training data verified: {abs_data_path}")
         return True
 
     def launch_session(self) -> None:
         """
         Opens the Colab training environment in the default browser.
+        Handles missing environment dependencies gracefully.
         """
         if not os.path.exists(self.notebook_path):
-            logger.error(f"Notebook template missing: {self.notebook_path}")
-            return
+            logger.error(f"Notebook template missing at: {self.notebook_path}")
+            raise FileNotFoundError(f"Notebook not found: {self.notebook_path}")
             
         logger.info(f"Opening Colab for training: {self.notebook_path}")
         try:
-            # Assuming termux-open is available in the environment
-            subprocess.run(['termux-open', self.colab_url], check=True)
+            # Check if termux-open exists to avoid subprocess errors
+            if subprocess.run(['which', 'termux-open'], capture_output=True).returncode == 0:
+                subprocess.run(['termux-open', self.colab_url], check=True)
+            else:
+                raise FileNotFoundError("termux-open utility not found")
         except Exception as e:
             logger.warning(f"Could not open browser automatically: {e}")
             print(f"Please manually open: {self.colab_url} and upload {self.notebook_path}")
@@ -46,12 +57,22 @@ class ColabTrigger:
     def run_remote_training_pipeline(self, data_path: str) -> None:
         """
         Full workflow: Validate data -> Prepare Trigger -> Launch session.
+        Ensures robust error propagation through the pipeline.
         """
+        if not data_path or not isinstance(data_path, str):
+            logger.error("Invalid data_path provided to pipeline")
+            return
+
         if self.prepare_data(data_path):
-            self.launch_session()
+            try:
+                self.launch_session()
+            except Exception as e:
+                logger.error(f"Failed to launch remote training pipeline: {e}")
         else:
             logger.error("Pipeline aborted due to missing training artifacts.")
 
 if __name__ == "__main__":
     trigger = ColabTrigger()
-    trigger.run_remote_training_pipeline("./data/training_data.jsonl")
+    # Ensure correct absolute path resolution
+    target_data = os.path.join(os.getcwd(), "data/training_data.jsonl")
+    trigger.run_remote_training_pipeline(target_data)
