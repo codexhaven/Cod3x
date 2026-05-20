@@ -134,13 +134,21 @@ def main():
                 
                 # Deep-learning pass: teach each node in detail
                 import json as _json, re as _re
+                _mcnl = {}
                 try:
                     _mcnl = _json.loads(response)
                 except:
                     _match = _re.search(r'\{.*\}', response, _re.DOTALL)
-                    _mcnl = _json.loads(_match.group()) if _match else {}
+                    if _match:
+                        try: _mcnl = _json.loads(_match.group())
+                        except: pass
+                # Fallback: if no valid JSON, treat the whole response as a single lesson
+                if not _mcnl or not isinstance(_mcnl, dict):
+                    _mcnl = {"program_name": topic, "nodes": [{"id": "direct_response", "topic": topic, "action": "teach"}]}
+                    response = response  # Use raw response
                 
-                _nodes = _mcnl.get("nodes", [])
+                _nodes = _mcnl.get("nodes", []) if isinstance(_mcnl, dict) else []
+                _deep_knowledge = []  # Initialize here to prevent UnboundLocalError
                 if _nodes:
                     print(f"\nCod3x: Deep-learning {len(_nodes)} nodes...")
                     _deep_knowledge = []

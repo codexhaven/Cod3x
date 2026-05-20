@@ -14,11 +14,11 @@ class ColabTrigger:
     LoRA fine-tuning tasks that are not performant on Android/Termux.
     """
     
-    def __init__(self, notebook_path: str = "training/train_lora.ipynb"):
+    def __init__(self, notebook_path: str = "notebooks/train_persona.ipynb"):
         self.notebook_path = os.path.abspath(notebook_path)
         self.colab_url = "https://colab.research.google.com/"
         
-    def prepare_data(self, data_path: str = "./data/training_data.jsonl") -> bool:
+    def prepare_data(self, data_path: str = "./data/training_data.json") -> bool:
         """
         Verify the existence and validity of training data before triggering remote execution.
         """
@@ -74,5 +74,5 @@ class ColabTrigger:
 if __name__ == "__main__":
     trigger = ColabTrigger()
     # Ensure correct absolute path resolution
-    target_data = os.path.join(os.getcwd(), "data/training_data.jsonl")
+    target_data = os.path.join(os.getcwd(), "data/training_data.json")
     trigger.run_remote_training_pipeline(target_data)

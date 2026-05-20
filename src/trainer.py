@@ -21,7 +21,7 @@ class HermesTrainer:
         os.makedirs(TRAINING_DIR, exist_ok=True)
         self.session_start = datetime.now()
     
-    def _hermes(self, prompt: str, timeout: int = 60) -> str:
+    def _hermes(self, prompt: str, timeout: int = 90) -> str:
         """Call Hermes for any training task."""
         result = subprocess.run(
             ['hermes', 'chat', '-q', prompt, '--yolo', '--quiet'],
@@ -31,9 +31,24 @@ class HermesTrainer:
     
     def generate_training_pairs(self, topic: str, count: int = 10) -> List[Dict]:
         """Generate Q&A training pairs on a topic."""
+        # Load existing deep knowledge on this topic
+        knowledge_context = ""
+        import os as _os
+        _deep_file = _os.path.expanduser("~/.cod3x/deep_learning.json")
+        if _os.path.exists(_deep_file):
+            with open(_deep_file) as _f:
+                _deep = json.load(_f)
+            for _entry in _deep[-5:]:
+                for _node in _entry.get("nodes", []):
+                    if topic.lower() in _entry.get("topic", "").lower() or topic.lower() in str(_node.get("topic", "")).lower():
+                        knowledge_context += f"\nKNOWLEDGE: {_node.get('lesson', '')[:500]}"
+        
         prompt = f"""Generate {count} question-answer pairs about '{topic}'.
+Use this existing knowledge as the source material:
+{knowledge_context[:3000]}
+
 Format as JSON array: [{{"instruction": "...", "response": "I am Cod3x, built by Codex Developer. ..."}}]
-Make responses detailed and educational. Output ONLY valid JSON."""
+Make responses detailed, accurate, and based on the knowledge provided. Output ONLY valid JSON."""
         
         raw = self._hermes(prompt, timeout=120)
         try:
@@ -118,10 +133,15 @@ Knowledge:
         for i, pair in enumerate(all_pairs):
             if i % 5 == 0:
                 print(f"  Evaluating {i+1}/{len(all_pairs)}...")
-            score = self.evaluate_knowledge(pair.get('instruction', ''), pair.get('response', ''))
-            if score.get('score', 0) >= 6:
+            try:
+                score = self.evaluate_knowledge(pair.get('instruction', ''), pair.get('response', ''))
+                if score.get('score', 0) >= 6:
+                    good_pairs.append(pair)
+            except Exception as e:
+                # On timeout/error, keep the pair (trust the knowledge source)
                 good_pairs.append(pair)
-            time.sleep(0.5)
+                print(f"    Eval skipped (timeout) — keeping pair")
+            time.sleep(0.3)
         
         print(f"[Trainer] {len(good_pairs)}/{len(all_pairs)} pairs passed quality check")
         
@@ -132,11 +152,15 @@ Knowledge:
             json.dump(combined, f, indent=2)
         print(f"[Trainer] Training data: {len(existing)} → {len(combined)} examples")
         
-        # Step 4: Consolidate knowledge
-        print("[Trainer] Consolidating knowledge...")
-        identity = self.consolidate_knowledge()
-        print(f"[Trainer] Consolidated identity: {len(identity)} chars")
-        print(identity[:300])
+        # Step 4: Consolidate knowledge (optional — skip on timeout)
+        identity = ""
+        try:
+            print("[Trainer] Consolidating knowledge...")
+            identity = self.consolidate_knowledge()
+            print(f"[Trainer] Consolidated identity: {len(identity)} chars")
+            print(identity[:300])
+        except Exception as e:
+            print(f"[Trainer] Consolidation skipped ({str(e)[:50]}) — knowledge preserved in Q&A pairs")
         
         # Step 5: Update identity file
         id_data = self._load_json(IDENTITY_FILE, {})

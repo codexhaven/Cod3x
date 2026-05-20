@@ -39,7 +39,7 @@ cod3x uses a separation-of-concerns model:
 - eval/: Evaluation framework (LLM-as-a-Judge) for persona fidelity.
 
 ## Compliance, Security & Robustness
-- License: This project is released under the [LICENSE](LICENSE) file (ensure this file exists in the root).
+- License: This project is released under the [MIT License](LICENSE).
 - Data Sanitization: All target data undergoes automated cleaning using defined schema validation (pydantic/JSON schema).
 - Human-in-the-Loop (HITL): Every generated adapter undergoes verification before deployment to ensure no harmful bias transfer occurs.
 - Input Validation: All core scripts include guard clauses (e.g., `assert path.exists()`, `if not value > 0`) for pathing and configuration values.
